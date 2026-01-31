@@ -124,8 +124,7 @@ def randomize_state_fulu(spec, state, stats, exit_fraction=0.1, slash_fraction=0
 
 
 def randomize_state_gloas(spec, state, stats, exit_fraction=0.1, slash_fraction=0.1):
-    # Delegate to electra since gloas diverges from the fulu execution_payload model
-    scenario_state = randomize_state_electra(
+    scenario_state = randomize_state_fulu(
         spec,
         state,
         stats,
@@ -417,6 +416,7 @@ def _add_random_builders(spec, state, rng=None):
         builder = build_mock_builder(spec, i, balance)
         state.builders.append(builder)
 
+
 # bids
 
 
@@ -426,7 +426,9 @@ def _build_random_signed_bid(spec, state, block, rng):
     _, _, blob_kzg_commitments, _ = get_sample_blob_tx(
         spec, blob_count=rng.randint(0, spec.config.MAX_BLOBS_PER_BLOCK), rng=rng
     )
-    kzg_list = spec.List[spec.KZGCommitment, spec.MAX_BLOB_COMMITMENTS_PER_BLOCK](blob_kzg_commitments)
+    kzg_list = spec.List[spec.KZGCommitment, spec.MAX_BLOB_COMMITMENTS_PER_BLOCK](
+        blob_kzg_commitments
+    )
 
     # Find active builders and randomly choose self-build vs real builder (50/50)
     active_builders = [
@@ -461,7 +463,9 @@ def _build_random_signed_bid(spec, state, block, rng):
     )
 
     if use_real_builder:
-        signature = spec.get_execution_payload_bid_signature(state, bid, builder_privkeys[builder_index])
+        signature = spec.get_execution_payload_bid_signature(
+            state, bid, builder_privkeys[builder_index]
+        )
     else:
         signature = spec.G2_POINT_AT_INFINITY
 
