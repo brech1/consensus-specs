@@ -489,7 +489,10 @@ processing the execution payload bid in the block.
 
 ```python
 def is_parent_block_full(state: BeaconState) -> bool:
-    return state.latest_execution_payload_bid.block_hash == state.latest_block_hash
+    return (
+        state.latest_block_hash != Hash32()
+        and state.latest_execution_payload_bid.block_hash == state.latest_block_hash
+    )
 ```
 
 #### New `is_pending_validator`

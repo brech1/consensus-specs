@@ -9,6 +9,7 @@ from tests.infra.helpers.withdrawals import (
     assert_process_withdrawals,
     prepare_process_withdrawals,
     set_parent_block_empty,
+    set_parent_block_full,
 )
 
 
@@ -1038,6 +1039,9 @@ def test_full_builder_payload_reserves_sweep_slot(spec, state):
         - next_withdrawal_validator_index: Correctly advanced by MAX_VALIDATORS_PER_WITHDRAWALS_SWEEP
           (sweep runs even though no validator withdrawals are produced due to capped balances)
     """
+    # Setup: Set parent block as full
+    set_parent_block_full(spec, state)
+
     # Setup: Record initial state
     num_validators = len(state.validators)
     starting_validator_index = state.next_withdrawal_validator_index

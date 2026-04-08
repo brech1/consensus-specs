@@ -37,7 +37,9 @@ def test_on_execution_payload(spec, state):
     anchor_root = get_anchor_root(spec, state)
     check_head_against_root(spec, store, anchor_root)
 
-    # Genesis head has FULL payload status
+    # Genesis has no execution payload
+    assert not spec.is_parent_block_full(state)
+    assert anchor_root in store.payload_states
     head = spec.get_head(store)
     assert head.payload_status == spec.PAYLOAD_STATUS_FULL
 
@@ -51,6 +53,9 @@ def test_on_execution_payload(spec, state):
     assert block_root in store.blocks
     assert block_root in store.block_states
     assert block_root in store.payload_timeliness_vote
+
+    # Slot 1 parent payload status is FULL
+    assert spec.get_parent_payload_status(store, signed_block.message) == spec.PAYLOAD_STATUS_FULL
 
     # Head is the new block with EMPTY status
     check_head_against_root(spec, store, block_root)

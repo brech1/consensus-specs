@@ -4,6 +4,7 @@ from eth_consensus_specs.test.helpers.forks import is_post_electra, is_post_fulu
 from tests.infra.helpers.withdrawals import (
     assert_process_withdrawals_pre_gloas,
     get_expected_withdrawals,
+    set_parent_block_full,
 )
 
 
@@ -223,6 +224,9 @@ def run_withdrawals_processing(
       - post-state ('post').
     If ``valid == False``, run expecting ``AssertionError``
     """
+    if is_post_gloas(spec):
+        set_parent_block_full(spec, state)
+
     expected_withdrawals = get_expected_withdrawals(spec, state)
     assert len(expected_withdrawals) <= spec.MAX_WITHDRAWALS_PER_PAYLOAD
     if num_expected_withdrawals is not None:

@@ -150,6 +150,10 @@ def create_genesis_state(spec, validator_balances, activation_threshold):
 
     genesis_block_body = spec.BeaconBlockBody()
 
+    if is_post_gloas(spec):
+        # Seed bid block_hash before body_root computation
+        genesis_block_body.signed_execution_payload_bid.message.block_hash = eth1_block_hash
+
     state = spec.BeaconState(
         genesis_time=0,
         eth1_deposit_index=len(validator_balances),
@@ -197,8 +201,8 @@ def create_genesis_state(spec, validator_balances, activation_threshold):
         state.next_sync_committee = spec.get_next_sync_committee(state)
 
     if is_post_gloas(spec):
-        # Initialize the latest_execution_payload_bid
-        genesis_block_body.signed_execution_payload_bid.message.block_hash = eth1_block_hash
+        # Initialize latest_block_hash with the EL genesis hash
+        state.latest_block_hash = eth1_block_hash
     elif is_post_bellatrix(spec):
         # Initialize the execution payload header (with block number and genesis time set to 0)
         state.latest_execution_payload_header = get_sample_genesis_execution_payload_header(
