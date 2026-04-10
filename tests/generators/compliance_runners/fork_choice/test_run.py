@@ -41,6 +41,14 @@ def get_test_case(spec, td):
             for e in envelope_files
         }
 
+    ptc_message_files = glob(f"{td}/payload_attestation_message_*.ssz_snappy")
+    ptc_messages = {}
+    if ptc_message_files:
+        ptc_messages = {
+            get_prefix(p): spec.PayloadAttestationMessage.decode_bytes(read_ssz_snappy(p))
+            for p in ptc_message_files
+        }
+
     return (
         read_yaml(f"{td}/meta.yaml"),
         spec.BeaconBlock.decode_bytes(read_ssz_snappy(f"{td}/anchor_block.ssz_snappy")),
@@ -58,6 +66,7 @@ def get_test_case(spec, td):
             for b in glob(f"{td}/attester_slashing_*.ssz_snappy")
         },
         envelopes,
+        ptc_messages,
         read_yaml(f"{td}/steps.yaml"),
     )
 
@@ -75,8 +84,8 @@ TestInfo = namedtuple(
 def run_test(test_info):
     preset, fork, test_dir = test_info
     spec = spec_targets[preset][fork]
-    meta, anchor_block, anchor_state, blocks, atts, slashings, envelopes, steps = get_test_case(
-        spec, test_dir
+    meta, anchor_block, anchor_state, blocks, atts, slashings, envelopes, ptc_messages, steps = (
+        get_test_case(spec, test_dir)
     )
     store = spec.get_forkchoice_store(anchor_state, anchor_block)
     for step in steps:
@@ -117,6 +126,19 @@ def run_test(test_info):
             assert valid
             slashing = slashings[slashing_id]
             spec.on_attester_slashing(store, slashing)
+        elif "payload_attestation_message" in step:
+            msg_id = step["payload_attestation_message"]
+            valid = step.get("valid", True)
+            is_from_block = step.get("is_from_block", False)
+            ptc_msg = ptc_messages[msg_id]
+            if valid:
+                spec.on_payload_attestation_message(store, ptc_msg, is_from_block=is_from_block)
+            else:
+                expect_assertion_error(
+                    lambda: spec.on_payload_attestation_message(
+                        store, ptc_msg, is_from_block=is_from_block
+                    )
+                )
         elif "execution_payload" in step:
             envelope_id = step["execution_payload"]
             valid = step.get("valid", True)

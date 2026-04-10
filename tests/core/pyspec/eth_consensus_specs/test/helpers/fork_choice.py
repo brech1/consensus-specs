@@ -428,6 +428,50 @@ def add_execution_payload(spec, store, signed_envelope, test_steps, valid=True):
     output_store_checks(spec, store, test_steps)
 
 
+def get_payload_attestation_message_file_name(ptc_message):
+    return f"payload_attestation_message_{encode_hex(ptc_message.hash_tree_root())}"
+
+
+def run_on_payload_attestation_message(spec, store, ptc_message, is_from_block=False, valid=True):
+    if not valid:
+        expect_assertion_error(
+            lambda: spec.on_payload_attestation_message(
+                store, ptc_message, is_from_block=is_from_block
+            )
+        )
+        return
+
+    spec.on_payload_attestation_message(store, ptc_message, is_from_block=is_from_block)
+
+
+def add_payload_attestation_message(
+    spec, store, ptc_message, test_steps, is_from_block=False, valid=True
+):
+    file_name = get_payload_attestation_message_file_name(ptc_message)
+    yield file_name, ptc_message
+
+    if not valid:
+        run_on_payload_attestation_message(
+            spec, store, ptc_message, is_from_block=is_from_block, valid=False
+        )
+        test_steps.append(
+            {
+                "payload_attestation_message": file_name,
+                "valid": False,
+                "is_from_block": is_from_block,
+            }
+        )
+        return
+
+    run_on_payload_attestation_message(
+        spec, store, ptc_message, is_from_block=is_from_block, valid=True
+    )
+    test_steps.append(
+        {"payload_attestation_message": file_name, "valid": True, "is_from_block": is_from_block}
+    )
+    output_store_checks(spec, store, test_steps)
+
+
 def run_on_attester_slashing(spec, store, attester_slashing, valid=True):
     if not valid:
         expect_assertion_error(lambda: spec.on_attester_slashing(store, attester_slashing))

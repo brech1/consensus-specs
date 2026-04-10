@@ -1,5 +1,4 @@
 from eth_consensus_specs.test.context import (
-    expect_assertion_error,
     spec_state_test,
     with_gloas_and_later,
 )
@@ -7,6 +6,7 @@ from eth_consensus_specs.test.helpers.block import (
     build_empty_block_for_next_slot,
 )
 from eth_consensus_specs.test.helpers.fork_choice import (
+    add_payload_attestation_message,
     get_genesis_forkchoice_store_and_block,
     on_tick_and_append_step,
     tick_and_add_block,
@@ -94,33 +94,29 @@ def test_on_payload_attestation_updates_votes(spec, state):
     ptc_member = ptc[0]
     ptc_index = ptc.index(ptc_member)
 
-    spec.on_payload_attestation_message(
-        store,
-        _build_payload_attestation_message(
-            spec,
-            block_state,
-            block_root,
-            ptc_member,
-            payload_present=True,
-            blob_data_available=True,
-        ),
-        is_from_block=False,
+    msg_1 = _build_payload_attestation_message(
+        spec,
+        block_state,
+        block_root,
+        ptc_member,
+        payload_present=True,
+        blob_data_available=True,
     )
+    yield from add_payload_attestation_message(spec, store, msg_1, test_steps)
+
     assert store.payload_timeliness_vote[block_root][ptc_index] == True
     assert store.payload_data_availability_vote[block_root][ptc_index] == True
 
-    spec.on_payload_attestation_message(
-        store,
-        _build_payload_attestation_message(
-            spec,
-            block_state,
-            block_root,
-            ptc_member,
-            payload_present=False,
-            blob_data_available=True,
-        ),
-        is_from_block=False,
+    # Mixed flags: catches bugs that copy one field into both arrays
+    msg_2 = _build_payload_attestation_message(
+        spec,
+        block_state,
+        block_root,
+        ptc_member,
+        payload_present=False,
+        blob_data_available=True,
     )
+    yield from add_payload_attestation_message(spec, store, msg_2, test_steps)
 
     assert store.payload_timeliness_vote[block_root][ptc_index] == False
     assert store.payload_data_availability_vote[block_root][ptc_index] == True
@@ -149,8 +145,12 @@ def test_on_payload_attestation_not_ptc_member(spec, state):
         payload_present=True,
     )
 
-    expect_assertion_error(
-        lambda: spec.on_payload_attestation_message(store, ptc_message, is_from_block=False)
+    yield from add_payload_attestation_message(
+        spec,
+        store,
+        ptc_message,
+        test_steps,
+        valid=False,
     )
 
     yield "steps", test_steps
@@ -168,23 +168,25 @@ def test_on_payload_attestation_checks_current_slot_and_signature(spec, state):
     block_root, block_state, ptc = yield from _setup_ptc_block(spec, store, state, test_steps)
     _move_store_to_slot(spec, store, block_state.slot, test_steps)
 
-    invalid_signature_message = _build_payload_attestation_message(
+    # Bad signature
+    invalid_sig_msg = _build_payload_attestation_message(
         spec,
         block_state,
         block_root,
         ptc[0],
         payload_present=True,
     )
-    invalid_signature_message.signature = spec.BLSSignature()
-    expect_assertion_error(
-        lambda: spec.on_payload_attestation_message(
-            store,
-            invalid_signature_message,
-            is_from_block=False,
-        )
+    invalid_sig_msg.signature = spec.BLSSignature()
+    yield from add_payload_attestation_message(
+        spec,
+        store,
+        invalid_sig_msg,
+        test_steps,
+        valid=False,
     )
 
-    valid_message = _build_payload_attestation_message(
+    # Valid signature but stale slot
+    valid_msg = _build_payload_attestation_message(
         spec,
         block_state,
         block_root,
@@ -192,8 +194,12 @@ def test_on_payload_attestation_checks_current_slot_and_signature(spec, state):
         payload_present=True,
     )
     _move_store_to_slot(spec, store, block_state.slot + 1, test_steps)
-    expect_assertion_error(
-        lambda: spec.on_payload_attestation_message(store, valid_message, is_from_block=False)
+    yield from add_payload_attestation_message(
+        spec,
+        store,
+        valid_msg,
+        test_steps,
+        valid=False,
     )
 
     yield "steps", test_steps
@@ -222,6 +228,7 @@ def test_on_payload_attestation_off_slot_message_is_ignored(spec, state):
     before_timeliness = list(store.payload_timeliness_vote[block_root])
     before_availability = list(store.payload_data_availability_vote[block_root])
 
+    # Handler returns silently on slot mismatch — call directly
     spec.on_payload_attestation_message(store, ptc_message, is_from_block=False)
 
     assert list(store.payload_timeliness_vote[block_root]) == before_timeliness
@@ -251,8 +258,12 @@ def test_on_payload_attestation_unknown_block_root(spec, state):
     )
     ptc_message.data.beacon_block_root = spec.Root(b"\xff" * 32)
 
-    expect_assertion_error(
-        lambda: spec.on_payload_attestation_message(store, ptc_message, is_from_block=False)
+    yield from add_payload_attestation_message(
+        spec,
+        store,
+        ptc_message,
+        test_steps,
+        valid=False,
     )
 
     yield "steps", test_steps
@@ -280,7 +291,13 @@ def test_on_payload_attestation_from_block_skips_signature_and_slot_checks(spec,
 
     _move_store_to_slot(spec, store, block_state.slot + 1, test_steps)
 
-    spec.on_payload_attestation_message(store, ptc_message, is_from_block=True)
+    yield from add_payload_attestation_message(
+        spec,
+        store,
+        ptc_message,
+        test_steps,
+        is_from_block=True,
+    )
 
     ptc_index = ptc.index(ptc_member)
     assert store.payload_timeliness_vote[block_root][ptc_index] == True

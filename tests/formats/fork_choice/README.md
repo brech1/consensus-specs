@@ -17,10 +17,13 @@ components of the fork choice.
     - [`on_attester_slashing` execution step](#on_attester_slashing-execution-step)
     - [`on_payload_info` execution step](#on_payload_info-execution-step)
     - [`on_execution_payload_envelope` execution step](#on_execution_payload_envelope-execution-step)
+    - [`on_execution_payload` execution step](#on_execution_payload-execution-step)
+    - [`on_payload_attestation_message` execution step](#on_payload_attestation_message-execution-step)
     - [Checks step](#checks-step)
   - [`attestation_<32-byte-root>.ssz_snappy`](#attestation_32-byte-rootssz_snappy)
   - [`block_<32-byte-root>.ssz_snappy`](#block_32-byte-rootssz_snappy)
   - [`execution_payload_envelope_<32-byte-root>.ssz_snappy`](#execution_payload_envelope_32-byte-rootssz_snappy)
+  - [`payload_attestation_message_<32-byte-root>.ssz_snappy`](#payload_attestation_message_32-byte-rootssz_snappy)
 - [Condition](#condition)
 
 <!-- mdformat-toc end -->
@@ -200,6 +203,26 @@ The file is located in the same folder (see below).
 
 After this step, the `store` object may have been updated.
 
+#### `on_payload_attestation_message` execution step
+
+The parameter that is required for executing
+`on_payload_attestation_message(store, ptc_message, is_from_block)`.
+
+```yaml
+{
+    payload_attestation_message: string  -- the name of the `payload_attestation_message_<32-byte-root>.ssz_snappy` file.
+                                            To execute `on_payload_attestation_message(store, ptc_message, is_from_block)`.
+    valid: bool                          -- optional, default to `true`.
+                                            If it's `false`, this execution step is expected to be invalid.
+    is_from_block: bool                  -- optional, default to `false`.
+                                            If `true`, signature and current-slot checks are skipped.
+}
+```
+
+The file is located in the same folder (see below).
+
+After this step, the `store` object may have been updated.
+
 #### Checks step
 
 The checks to verify the current status of `store`.
@@ -284,6 +307,12 @@ Each file is an SSZ-snappy encoded `SignedBeaconBlock`.
 `<32-byte-root>` is the hash tree root of the given signed envelope.
 
 Each file is an SSZ-snappy encoded `SignedExecutionPayloadEnvelope`.
+
+### `payload_attestation_message_<32-byte-root>.ssz_snappy`
+
+`<32-byte-root>` is the hash tree root of the given message.
+
+Each file is an SSZ-snappy encoded `PayloadAttestationMessage`.
 
 ## Condition
 
