@@ -151,24 +151,20 @@ def run_test(test_info):
                 )
         elif "checks" in step:
             checks = step["checks"]
-
-            cached_head = None
-
-            def get_head():
-                nonlocal cached_head
-                if cached_head is None:
-                    cached_head = spec.get_head(store)
-                return cached_head
-
             for check, value in checks.items():
                 if check == "time":
                     expected_time = value
                     assert store.time == expected_time
                 elif check == "head":
-                    head = get_head()
-                    head_root = head.root if hasattr(head, "root") else head
-                    assert store.blocks[head_root].slot == value["slot"]
-                    assert str(head_root) == value["root"]
+                    head = spec.get_head(store)
+                    if is_post_gloas(spec):
+                        head_root = head.root
+                        assert store.blocks[head_root].slot == value["slot"]
+                        assert str(head_root) == value["root"]
+                        assert head.payload_status == value["payload_status"]
+                    else:
+                        assert store.blocks[head].slot == value["slot"]
+                        assert str(head) == value["root"]
                 elif check == "proposer_boost_root":
                     assert str(store.proposer_boost_root) == str(value)
                 elif check == "justified_checkpoint":
@@ -183,9 +179,6 @@ def run_test(test_info):
                     actual = value
                     expected = get_viable_for_head_checks(spec, store)
                     assert {frozenset(e) for e in actual} == {frozenset(e) for e in expected}
-                elif check == "head_payload_status":
-                    head = get_head()
-                    assert head.payload_status == value
                 elif check in ("payload_timeliness_vote", "payload_data_availability_vote"):
                     target_root = spec.Root(decode_hex(value["block_root"]))
                     assert list(getattr(store, check)[target_root]) == value["votes"]

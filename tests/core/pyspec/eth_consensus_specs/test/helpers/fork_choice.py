@@ -15,11 +15,7 @@ from eth_consensus_specs.test.helpers.forks import is_post_fulu, is_post_gloas
 
 
 def check_head_against_root(spec, store, root):
-    head = spec.get_head(store)
-    if is_post_gloas(spec):
-        assert head.root == root
-    else:
-        assert head == root
+    assert _get_head_root(spec, store) == root
 
 
 class BlobData(NamedTuple):
@@ -530,22 +526,20 @@ def add_payload_vote_checks(store, block_root, test_steps):
 
 def _get_head_root(spec, store):
     head = spec.get_head(store)
-    if is_post_gloas(spec):
-        head_root = head.root
-    else:
-        head_root = head
-    return head_root
+    return head.root if is_post_gloas(spec) else head
 
 
-def get_formatted_head_output(spec, store, head_root=None):
-    if head_root is None:
-        head_root = _get_head_root(spec, store)
-
-    slot = store.blocks[head_root].slot
-    return {
-        "slot": int(slot),
+def get_formatted_head_output(spec, store):
+    head_root = _get_head_root(spec, store)
+    formatted_head_output = {
+        "slot": int(store.blocks[head_root].slot),
         "root": encode_hex(head_root),
     }
+
+    if is_post_gloas(spec):
+        formatted_head_output["payload_status"] = int(spec.get_head(store).payload_status)
+
+    return formatted_head_output
 
 
 def output_head_check(spec, store, test_steps):
@@ -558,13 +552,10 @@ def output_head_check(spec, store, test_steps):
     )
 
 
-def get_basic_store_checks(spec, store, head_root=None):
-    if head_root is None:
-        head_root = _get_head_root(spec, store)
-
+def get_basic_store_checks(spec, store):
     return {
         "time": int(store.time),
-        "head": get_formatted_head_output(spec, store, head_root),
+        "head": get_formatted_head_output(spec, store),
         "justified_checkpoint": {
             "epoch": int(store.justified_checkpoint.epoch),
             "root": encode_hex(store.justified_checkpoint.root),
@@ -621,13 +612,7 @@ def get_viable_for_head_checks(spec, store):
 
 
 def output_store_checks(spec, store, test_steps, with_viable_for_head_weights=False):
-    if is_post_gloas(spec):
-        head = spec.get_head(store)
-        checks = get_basic_store_checks(spec, store, head.root)
-        checks["head_payload_status"] = int(head.payload_status)
-    else:
-        checks = get_basic_store_checks(spec, store)
-
+    checks = get_basic_store_checks(spec, store)
     if with_viable_for_head_weights:
         checks["viable_for_head_roots_and_weights"] = get_viable_for_head_checks(spec, store)
 
