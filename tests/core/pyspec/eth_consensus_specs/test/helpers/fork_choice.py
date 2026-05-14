@@ -14,10 +14,6 @@ from eth_consensus_specs.test.helpers.attestations import (
 from eth_consensus_specs.test.helpers.forks import is_post_fulu, is_post_gloas
 
 
-def check_head_against_root(spec, store, root):
-    assert _get_head_root(spec, store) == root
-
-
 class BlobData(NamedTuple):
     """
     The return values of blob/sidecar retrieval helpers.
@@ -529,17 +525,21 @@ def _get_head_root(spec, store):
     return head.root if is_post_gloas(spec) else head
 
 
+def check_head_against_root(spec, store, root):
+    assert _get_head_root(spec, store) == root
+
+
 def get_formatted_head_output(spec, store):
     head_root = _get_head_root(spec, store)
-    formatted_head_output = {
+    head = {
         "slot": int(store.blocks[head_root].slot),
         "root": encode_hex(head_root),
     }
 
     if is_post_gloas(spec):
-        formatted_head_output["payload_status"] = int(spec.get_head(store).payload_status)
+        head["payload_status"] = int(spec.get_head(store).payload_status)
 
-    return formatted_head_output
+    return head
 
 
 def output_head_check(spec, store, test_steps):
