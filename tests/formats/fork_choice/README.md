@@ -31,6 +31,8 @@ components of the fork choice.
 
 ### `meta.yaml`
 
+Optional YAML metadata. If this file is absent, `bls_setting` defaults to `0`.
+
 ```yaml
 description: string    -- Optional. Description of test case, purely for debugging purposes.
 bls_setting: int       -- see general test-format spec.
@@ -249,6 +251,14 @@ finalized_checkpoint: {
     epoch: int,               -- Integer value from store.finalized_checkpoint.epoch
     root: string,             -- Encoded 32-byte value from store.finalized_checkpoint.root
 }
+checkpoint_state: {           -- Stored state for a checkpoint in store.checkpoint_states
+    checkpoint: {
+        epoch: int,           -- Integer value from checkpoint.epoch
+        root: string,         -- Encoded 32-byte value from checkpoint.root
+    },
+    slot: int,                -- Integer value from the stored BeaconState.slot
+    state_root: string,       -- Encoded hash_tree_root of the stored BeaconState
+}
 proposer_boost_root: string   -- Encoded 32-byte value from store.proposer_boost_root
 viable_for_head_roots_and_weights: [{
     root: string,             -- Encoded 32-byte value of filtered_block_tree leaf blocks/nodes
@@ -275,7 +285,23 @@ payload_data_availability_vote: {     -- [New in Gloas]
     block_root: string,               -- Encoded 32-byte beacon block root
     votes: [bool | null, ...]         -- Votes ordered by PTC positions. Length is `PTC_SIZE`.
 }
+latest_messages: [                    -- The recorded latest message for each listed validator.
+    {                                 -- Length is implementation-defined per test (subset of validators).
+        validator_index: int,         -- Entries are emitted in ascending validator_index order.
+        latest_message: null | {      -- null when the validator has no recorded message.
+            root: string,             -- Encoded 32-byte beacon block root
+            slot: int,                -- post-Gloas only; present together with payload_present
+            payload_present: bool,    -- post-Gloas only; present together with slot
+            epoch: int                -- pre-Gloas only; replaces slot/payload_present
+        }
+    },
+    ...
+]
 ```
+
+`latest_messages` checks may appear in multiple `checks` steps within a single
+test (for example, after each successive `on_attestation`); each entry validates
+the recorded message for the listed validator at that moment in the run.
 
 For example:
 
@@ -332,8 +358,11 @@ Each file is an SSZ-snappy encoded `PayloadAttestationMessage`.
      corresponding helper function on the current store.
      - For the `on_block` execution step: if
        `len(block.message.body.attestations) > 0`, execute each attestation with
-       `on_attestation(store, attestation)` after executing
-       `on_block(store, block)`. For Gloas and later forks, if
+       `on_attestation(store, attestation, is_from_block=True)` after executing
+       `on_block(store, block)`. If
+       `len(block.message.body.attester_slashings) > 0`, execute each attester
+       slashing with `on_attester_slashing(store, attester_slashing)` after
+       executing `on_block(store, block)`. For Gloas and later forks, if
        `len(block.message.body.payload_attestations) > 0`, expand each
        `PayloadAttestation` into its constituent `PayloadAttestationMessage`
        values and execute each one with

@@ -11,7 +11,9 @@ from eth_consensus_specs.test.helpers.attestations import (
     next_slots_with_attestations,
     state_transition_with_full_block,
 )
+from eth_consensus_specs.test.helpers.block import build_empty_block_for_next_slot
 from eth_consensus_specs.test.helpers.forks import is_post_fulu, is_post_gloas
+from eth_consensus_specs.test.helpers.state import state_transition_and_sign_block
 
 
 def check_head_against_root(spec, store, root):
@@ -263,6 +265,38 @@ def get_genesis_forkchoice_store_and_block(spec, genesis_state):
         )
     store = spec.get_forkchoice_store(genesis_state, genesis_block)
     return store, genesis_block
+
+
+def advance_store_to_slot(spec, store, slot, test_steps):
+    """Tick store time to the start of ``slot`` (no-op if already there or past)."""
+    slot_time = store.genesis_time + int(slot) * (spec.config.SLOT_DURATION_MS // 1000)
+    if store.time < slot_time:
+        on_tick_and_append_step(spec, store, slot_time, test_steps)
+
+
+def setup_one_block_store(spec, state):
+    """
+    Bootstrap a fork-choice store and apply one empty block at the next slot.
+    Mutates ``state`` in place via state transition.
+
+    Yields ``"anchor_state"``, ``"anchor_block"``, and the steps produced by
+    ``tick_and_add_block``. Returns ``(store, block_root, block_state, signed_block, test_steps)``.
+    """
+    test_steps = []
+    store, anchor_block = get_genesis_forkchoice_store_and_block(spec, state)
+    yield "anchor_state", state
+    yield "anchor_block", anchor_block
+
+    current_time = state.slot * (spec.config.SLOT_DURATION_MS // 1000) + store.genesis_time
+    on_tick_and_append_step(spec, store, current_time, test_steps)
+
+    block = build_empty_block_for_next_slot(spec, state)
+    signed_block = state_transition_and_sign_block(spec, state, block)
+    yield from tick_and_add_block(spec, store, signed_block, test_steps)
+
+    block_root = signed_block.message.hash_tree_root()
+    block_state = store.block_states[block_root]
+    return store, block_root, block_state, signed_block, test_steps
 
 
 def get_block_file_name(signed_block):
@@ -523,6 +557,42 @@ def add_payload_vote_checks(store, block_root, test_steps):
                     "block_root": encode_hex(block_root),
                     "votes": availability,
                 },
+            }
+        }
+    )
+
+
+def add_latest_messages_check(spec, store, validator_indices, test_steps):
+    entries = []
+    for validator_index in sorted(int(i) for i in validator_indices):
+        validator = spec.ValidatorIndex(validator_index)
+        msg = store.latest_messages.get(validator)
+        if msg is None:
+            entries.append({"validator_index": validator_index, "latest_message": None})
+            continue
+        body = {"root": encode_hex(msg.root)}
+        if is_post_gloas(spec):
+            body["slot"] = int(msg.slot)
+            body["payload_present"] = bool(msg.payload_present)
+        else:
+            body["epoch"] = int(msg.epoch)
+        entries.append({"validator_index": validator_index, "latest_message": body})
+    test_steps.append({"checks": {"latest_messages": entries}})
+
+
+def add_checkpoint_state_check(store, checkpoint, test_steps):
+    state = store.checkpoint_states[checkpoint]
+    test_steps.append(
+        {
+            "checks": {
+                "checkpoint_state": {
+                    "checkpoint": {
+                        "epoch": int(checkpoint.epoch),
+                        "root": encode_hex(checkpoint.root),
+                    },
+                    "slot": int(state.slot),
+                    "state_root": encode_hex(state.hash_tree_root()),
+                }
             }
         }
     )

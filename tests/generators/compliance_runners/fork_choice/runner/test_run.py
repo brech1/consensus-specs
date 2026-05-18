@@ -4,7 +4,7 @@ from glob import glob
 from pathlib import Path
 
 import pytest
-from eth_utils import decode_hex
+from eth_utils import decode_hex, encode_hex
 from ruamel.yaml import YAML
 from snappy import uncompress
 
@@ -189,6 +189,30 @@ def run_test(test_info):
                 elif check in ("payload_timeliness_vote", "payload_data_availability_vote"):
                     target_root = spec.Root(decode_hex(value["block_root"]))
                     assert list(getattr(store, check)[target_root]) == value["votes"]
+                elif check == "latest_messages":
+                    for entry in value:
+                        validator = spec.ValidatorIndex(entry["validator_index"])
+                        body = entry["latest_message"]
+                        if body is None:
+                            assert validator not in store.latest_messages
+                            continue
+                        msg = store.latest_messages[validator]
+                        assert str(msg.root) == body["root"]
+                        if "slot" in body:
+                            assert int(msg.slot) == body["slot"]
+                            assert bool(msg.payload_present) == body["payload_present"]
+                        else:
+                            assert int(msg.epoch) == body["epoch"]
+                elif check == "checkpoint_state":
+                    checkpoint_value = value["checkpoint"]
+                    checkpoint = spec.Checkpoint(
+                        epoch=spec.Epoch(checkpoint_value["epoch"]),
+                        root=spec.Root(decode_hex(checkpoint_value["root"])),
+                    )
+                    assert checkpoint in store.checkpoint_states
+                    checkpoint_state = store.checkpoint_states[checkpoint]
+                    assert int(checkpoint_state.slot) == value["slot"]
+                    assert encode_hex(checkpoint_state.hash_tree_root()) == value["state_root"]
                 else:
                     assert False
         else:

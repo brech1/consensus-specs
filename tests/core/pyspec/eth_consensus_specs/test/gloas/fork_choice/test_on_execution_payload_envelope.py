@@ -1,4 +1,5 @@
 from eth_consensus_specs.test.context import (
+    always_bls,
     spec_state_test,
     with_gloas_and_later,
 )
@@ -123,6 +124,7 @@ def test_on_execution_payload_envelope_valid(spec, state):
 
 @with_gloas_and_later
 @spec_state_test
+@always_bls
 def test_on_execution_payload_envelope_wrong_signature(spec, state):
     """
     Test that an envelope with an invalid BLS signature is rejected.
